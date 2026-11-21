@@ -2,24 +2,22 @@ import { describe, expect, it } from "vitest";
 import { readBoxes } from "../src/isobmff/boxes";
 import { HeifError } from "../src/heif/types";
 
-function box(type: string, payload: Uint8Array): Uint8Array {
-  const out = new Uint8Array(8 + payload.length);
-  const view = new DataView(out.buffer);
-  view.setUint32(0, out.length);
-  out.set(new TextEncoder().encode(type), 4);
-  out.set(payload, 8);
-  return out;
-}
-
 describe("readBoxes", () => {
   it("reads a size-0 box as extending to the parent end", () => {
-    const payload = box("free", new Uint8Array([1, 2, 3, 4]));
-    const wrapped = new Uint8Array(8 + payload.length);
-    wrapped.set(new TextEncoder().encode("test"), 4);
-    wrapped.set(payload, 8);
-    const boxes = readBoxes(wrapped, 8, wrapped.length);
-    expect(boxes.map((item) => item.type)).toEqual(["free"]);
-    expect(boxes[0]?.dataEnd - boxes[0]?.dataStart).toBe(4);
+    const data = new Uint8Array(20);
+    data.set(new TextEncoder().encode("free"), 4);
+    data.set([1, 2, 3, 4], 8);
+    const boxes = readBoxes(data, 0, 12);
+    expect(boxes).toEqual([
+      {
+        type: "free",
+        start: 0,
+        header: 8,
+        size: 12,
+        dataStart: 8,
+        dataEnd: 12,
+      },
+    ]);
   });
 
   it("throws with the box offset when the declared size runs past the buffer", () => {
