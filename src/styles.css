@@ -1,0 +1,7 @@
+:root {
+  color: #e8e8e8;
+  background: #111;
+  font: 14px/1.4 ui-sans-serif, system-ui, sans-serif;
+}
+body { margin: 0; }
+button, label { font: inherit; }
