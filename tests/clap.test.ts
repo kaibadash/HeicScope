@@ -42,4 +42,17 @@ describe("cleanApertureRect", () => {
   it("returns null when a denominator is zero", () => {
     expect(cleanApertureRect(clap(31, 0, 32, 1, 0, 1, 0, 1), 32, 32)).toBeNull();
   });
+
+  it("accepts an image whose edge is exactly 2^31", () => {
+    expect(cleanApertureRect(clap(1, 1, 1, 1, 0, 1, 0, 1), 2147483648, 1)).toEqual({
+      x: 1073741823,
+      y: 0,
+      width: 1,
+      height: 1,
+    });
+  });
+
+  it("returns null when an edge is greater than 2^31", () => {
+    expect(cleanApertureRect(clap(1, 1, 1, 1, 0, 1, 0, 1), 2147483649, 1)).toBeNull();
+  });
 });

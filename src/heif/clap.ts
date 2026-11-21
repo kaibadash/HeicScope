@@ -41,7 +41,7 @@ export function cleanApertureRect(clap: Clap, imageWidth: number, imageHeight: n
   ) {
     return null;
   }
-  if (imageWidth <= 0 || imageHeight <= 0 || imageWidth >= 2 ** 31 || imageHeight >= 2 ** 31) return null;
+  if (imageWidth <= 0 || imageHeight <= 0 || imageWidth > 2 ** 31 || imageHeight > 2 ** 31) return null;
 
   const width = fr(clap.width);
   const height = fr(clap.height);
