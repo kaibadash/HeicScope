@@ -13,55 +13,13 @@ function tooLarge(file: HeifFile): boolean {
   return file.canvas.width > EDGE_LIMIT || file.canvas.height > EDGE_LIMIT || file.canvas.width * file.canvas.height > PIXEL_LIMIT;
 }
 
-function boxes(buf: Uint8Array, start: number, end: number) {
-  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-  const out: { type: string; ps: number; pe: number }[] = [];
-  let offset = start;
-  while (offset + 8 <= end) {
-    const size = view.getUint32(offset);
-    const type = String.fromCharCode(buf[offset + 4], buf[offset + 5], buf[offset + 6], buf[offset + 7]);
-    if (size < 8) break;
-    out.push({ type, ps: offset + 8, pe: offset + size });
-    offset += size;
-  }
-  return out;
-}
-
-function patchIspe(file: Uint8Array, width: number, height: number): Uint8Array {
-  const copy = new Uint8Array(file);
-  const view = new DataView(copy.buffer, copy.byteOffset, copy.byteLength);
-  const top = boxes(copy, 0, copy.length);
-  const meta = top.find((box) => box.type === "meta");
-  if (!meta) return copy;
-  const children = boxes(copy, meta.ps + 4, meta.pe);
-  const iprp = children.find((box) => box.type === "iprp");
-  if (!iprp) return copy;
-  const inner = boxes(copy, iprp.ps, iprp.pe);
-  const ipco = inner.find((box) => box.type === "ipco");
-  if (!ipco) return copy;
-  const ispe = boxes(copy, ipco.ps, ipco.pe).find((box) => box.type === "ispe");
-  if (!ispe) return copy;
-  view.setUint32(ispe.ps + 4, width);
-  view.setUint32(ispe.ps + 8, height);
-  return copy;
-}
-
-function bytesForDecode(file: Uint8Array, item: HeifItem | undefined): Uint8Array {
-  const ispe = item?.properties.ispe;
-  if (!ispe || !item?.properties.clap) return file;
-  return patchIspe(file, ispe.width * 2, ispe.height * 2);
-}
-
 function fromChannel(decoded: {
   width: number;
   height: number;
   channels: { id: unknown; stride: number; data: Uint8Array }[];
 }): Rgba {
-  const minBytes = decoded.width * decoded.height * 4;
   const channel =
-    decoded.channels.find((item) => item.id === libheif.heif_channel_interleaved && item.data.length >= minBytes) ??
-    decoded.channels.find((item) => item.data.length >= minBytes) ??
-    decoded.channels[0];
+    decoded.channels.find((item) => item.id === libheif.heif_channel_interleaved) ?? decoded.channels[0];
   if (!channel) throw new Error(messages.primaryDecode);
   const data = new Uint8ClampedArray(decoded.width * decoded.height * 4);
   const rowBytes = decoded.width * 4;
@@ -71,19 +29,16 @@ function fromChannel(decoded: {
   return { width: decoded.width, height: decoded.height, data };
 }
 
-function decodeItem(file: Uint8Array, itemId: number, item: HeifItem | undefined): Rgba {
-  const source = bytesForDecode(file, item);
+function decodeItem(file: Uint8Array, itemId: number): Rgba {
   const context = libheif.heif_context_alloc();
   try {
-    const error = libheif.heif_context_read_from_memory(context, source);
+    const error = libheif.heif_context_read_from_memory(context, file);
     if (error.code.value !== libheif.heif_error_Ok.value) throw new Error(messages.decoderLoad);
     const handle = libheif.heif_js_context_get_image_handle(context, itemId);
     if (!handle) throw new Error(messages.tileDecode);
     try {
       const decoded = libheif.heif_js_decode_image2(handle, libheif.heif_colorspace_RGB, libheif.heif_chroma_interleaved_RGBA);
-      if (!decoded || (decoded.code?.value !== undefined && decoded.code.value !== libheif.heif_error_Ok.value)) {
-        throw new Error(messages.tileDecode);
-      }
+      if (!decoded || decoded.code) throw new Error(messages.tileDecode);
       const image = fromChannel(decoded);
       libheif.heif_image_release(decoded.image);
       return image;
@@ -122,7 +77,7 @@ function compose(file: Uint8Array, parsed: HeifFile): PixelResult {
   if (!primary) return { layer: null, warnings: [messages.primaryDecode] };
   let decoded: Rgba;
   try {
-    decoded = decodeItem(file, primary.id, primary);
+    decoded = decodeItem(file, primary.id);
   } catch {
     return { layer: null, warnings: [messages.primaryDecode] };
   }
@@ -171,7 +126,7 @@ export async function renderPixels(file: Uint8Array, parsed: HeifFile, force: bo
   for (const tile of grid.tiles) {
     let image: Rgba;
     try {
-      image = decodeItem(file, tile.id, parsed.items.find((entry) => entry.id === tile.id));
+      image = decodeItem(file, tile.id);
     } catch {
       const composed = compose(file, parsed);
       return { layer: composed.layer, warnings: [messages.tileDecode, ...composed.warnings] };

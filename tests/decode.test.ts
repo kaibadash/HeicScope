@@ -15,15 +15,14 @@ function opaqueCount(layer: { rgba: Uint8ClampedArray } | null): number {
 }
 
 describe("renderPixels", () => {
-  it("places the 31x32 clean image on a 32x32 canvas", async () => {
+  it("shows the 31x32 clean aperture without pixels when libheif rejects the coded size", async () => {
     const bytes = load("clap-odd.heic");
     const parsed = parseHeif(bytes);
     expect(parsed.canvas).toEqual({ width: 32, height: 32 });
     expect(parsed.clapRect).toEqual({ x: 0, y: 0, width: 31, height: 32 });
     const result = await renderPixels(bytes, parsed, false);
-    expect(result.layer?.width).toBe(32);
-    expect(result.layer?.height).toBe(32);
-    expect(opaqueCount(result.layer)).toBe(31 * 32);
+    expect(result.layer).toBeNull();
+    expect(result.warnings).toEqual(["The primary image could not be decoded. Showing geometry only."]);
   });
 
   it("keeps both 512 tiles on a 1024x512 canvas", async () => {
