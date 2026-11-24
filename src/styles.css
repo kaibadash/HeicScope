@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+.sheet {
+  background: repeating-linear-gradient(135deg, #1b2129 0 7px, #12161c 7px 14px);
+}
+
+.sheet canvas,
+.sheet svg {
+  position: absolute;
+  inset: 0;
+}
+
+.tile {
+  fill: none;
+  stroke: #3dff9a;
+  stroke-width: 2;
+}
+
+.tile.hot {
+  stroke-width: 6;
+}
+
+.grid {
+  fill: none;
+  stroke: #ffcc00;
+  stroke-width: 3;
+}
+
+.clap {
+  fill: none;
+  stroke: #ff4d4d;
+  stroke-width: 3;
+}
