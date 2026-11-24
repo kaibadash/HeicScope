@@ -46,7 +46,7 @@ export function Viewport(props: {
 
   return (
     <div
-      className="viewport"
+      className="viewport relative min-h-0 min-w-0 flex-1 cursor-grab touch-none overflow-hidden bg-[#090b0e] active:cursor-grabbing"
       ref={frameRef}
       onWheel={(event) => {
         event.preventDefault();
@@ -72,8 +72,8 @@ export function Viewport(props: {
         drag.current = null;
       }}
     >
-      <div className="stage" style={{ transform: `translate(${props.pan.x}px, ${props.pan.y}px) scale(${props.zoom})` }}>
-        <div className="sheet" style={{ width: props.width, height: props.height }}>
+      <div className="stage origin-top-left" style={{ transform: `translate(${props.pan.x}px, ${props.pan.y}px) scale(${props.zoom})` }}>
+        <div className="sheet relative" style={{ width: props.width, height: props.height }}>
           {props.layer ? <canvas ref={canvasRef} /> : null}
           <svg viewBox={`0 0 ${props.width} ${props.height}`} width={props.width} height={props.height}>
             {props.showTiles

@@ -9,9 +9,15 @@ import { SidePanel } from "./SidePanel";
 import { Viewport } from "./Viewport";
 
 const samples = [
-  ["Clean aperture", "clap-odd.heic"],
-  ["Grid", "grid-small-canvas.heic"],
-  ["Rotation", "irot-90.heic"],
+  ["Clean aperture", "clap-odd.heic", "Sample file with an odd clean aperture"],
+  ["Grid", "grid-small-canvas.heic", "Sample file whose tiles are larger than the grid"],
+  ["Rotation", "irot-90.heic", "Sample file rotated 90°"],
+] as const;
+
+const overlays = [
+  ["Tile boundaries", "#3dff9a"],
+  ["Grid output", "#ffcc00"],
+  ["Clean aperture", "#ff4d4d"],
 ] as const;
 
 type Ready = {
@@ -37,6 +43,15 @@ function tilesOf(parsed: HeifFile): TileCell[] {
   }];
 }
 
+function Swatch({ color, on }: { color: string; on: boolean }) {
+  return (
+    <span
+      className="size-2.5 shrink-0 rounded-[3px] border"
+      style={{ borderColor: color, background: on ? color : "transparent" }}
+    />
+  );
+}
+
 export function App() {
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState<Ready | null>(null);
@@ -48,6 +63,7 @@ export function App() {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 16, y: 16 });
   const [fitToken, setFitToken] = useState(0);
+  const [dropping, setDropping] = useState(false);
 
   async function openBuffer(bytes: Uint8Array, name: string, decodeForce: boolean) {
     try {
@@ -75,43 +91,89 @@ export function App() {
   }
 
   const tooLarge = ready?.warnings.some((warning) => warning.startsWith("This image is too large")) ?? false;
+  const tool = "rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-[13px] text-zinc-100 hover:bg-white/10";
 
   return (
-    <div className="app">
+    <div className="flex h-dvh flex-col bg-[#0c0e12] text-zinc-100">
       <header
-        onDragOver={(event) => event.preventDefault()}
+        className={`shrink-0 border-b border-white/10 bg-[#14181e] ${dropping ? "ring-1 ring-inset ring-[#3dff9a]" : ""}`}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDropping(true);
+        }}
+        onDragLeave={() => setDropping(false)}
         onDrop={(event) => {
           event.preventDefault();
+          setDropping(false);
           const file = event.dataTransfer.files[0];
           if (!file) return;
           setForce(false);
           void file.arrayBuffer().then((buffer) => openBuffer(new Uint8Array(buffer), file.name, false));
         }}
       >
-        <strong>HeicScope</strong>
-        {samples.map(([label, name]) => (
-          <button key={name} type="button" onClick={() => void openSample(name)}>{label}</button>
-        ))}
-        <label className="file">
-          Open file
-          <input
-            type="file"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (!file) return;
-              setForce(false);
-              void file.arrayBuffer().then((buffer) => openBuffer(new Uint8Array(buffer), file.name, false));
-            }}
-          />
-        </label>
-        <button type="button" onClick={() => setFitToken((value) => value + 1)}>Fit</button>
-        <button type="button" onClick={() => setZoom(1)}>100%</button>
-        <label><input type="checkbox" checked={showTiles} onChange={(event) => setShowTiles(event.target.checked)} /> Tile boundaries</label>
-        <label><input type="checkbox" checked={showGrid} disabled={!ready?.parsed.grid} onChange={(event) => setShowGrid(event.target.checked)} /> Grid output</label>
-        <label><input type="checkbox" checked={showClap} disabled={!ready?.parsed.clapRect} onChange={(event) => setShowClap(event.target.checked)} /> Clean aperture</label>
+        <div className="flex flex-wrap items-center gap-3 px-3 py-2">
+          <strong className="inline-flex items-center gap-2 text-sm tracking-tight">
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+              <rect x="1.25" y="1.25" width="13.5" height="13.5" fill="none" stroke="#3dff9a" strokeWidth="1.4" />
+              <rect x="3.5" y="2.75" width="9" height="10.5" fill="none" stroke="#ff4d4d" strokeWidth="1.4" />
+            </svg>
+            HeicScope
+          </strong>
+          <div className="flex rounded-lg bg-black/30 p-0.5" role="group" aria-label="Sample files">
+            {samples.map(([label, name, hint]) => (
+              <button
+                key={name}
+                type="button"
+                title={hint}
+                className={`rounded-md px-2.5 py-1 text-[13px] ${ready?.name === name ? "bg-white font-medium text-zinc-950" : "text-zinc-300 hover:bg-white/10"}`}
+                onClick={() => void openSample(name)}
+              >
+                Sample: {label}
+              </button>
+            ))}
+          </div>
+          <label className={`${tool} cursor-pointer`}>
+            Open file
+            <input
+              className="hidden"
+              type="file"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.currentTarget.value = "";
+                if (!file) return;
+                setForce(false);
+                void file.arrayBuffer().then((buffer) => openBuffer(new Uint8Array(buffer), file.name, false));
+              }}
+            />
+          </label>
+          <div className="ml-auto flex items-center gap-1.5">
+            <button type="button" className={tool} onClick={() => setFitToken((value) => value + 1)}>Fit</button>
+            <button type="button" className={tool} onClick={() => setZoom(1)}>100%</button>
+            <span className="min-w-12 text-right font-mono text-xs text-zinc-400">{Math.round(zoom * 100)}%</span>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-1 border-t border-white/10 px-3 py-1.5">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-[13px] hover:bg-white/5">
+            <input type="checkbox" className="sr-only" checked={showTiles} onChange={(event) => setShowTiles(event.target.checked)} />
+            <Swatch color={overlays[0][1]} on={showTiles} />
+            {overlays[0][0]}
+          </label>
+          <label className={`inline-flex items-center gap-2 rounded-md px-2 py-1 text-[13px] ${ready?.parsed.grid ? "cursor-pointer hover:bg-white/5" : "cursor-not-allowed opacity-35"}`}>
+            <input type="checkbox" className="sr-only" checked={showGrid} disabled={!ready?.parsed.grid} onChange={(event) => setShowGrid(event.target.checked)} />
+            <Swatch color={overlays[1][1]} on={showGrid && Boolean(ready?.parsed.grid)} />
+            {overlays[1][0]}
+          </label>
+          <label className={`inline-flex items-center gap-2 rounded-md px-2 py-1 text-[13px] ${ready?.parsed.clapRect ? "cursor-pointer hover:bg-white/5" : "cursor-not-allowed opacity-35"}`}>
+            <input type="checkbox" className="sr-only" checked={showClap} disabled={!ready?.parsed.clapRect} onChange={(event) => setShowClap(event.target.checked)} />
+            <Swatch color={overlays[2][1]} on={showClap && Boolean(ready?.parsed.clapRect)} />
+            {overlays[2][0]}
+          </label>
+        </div>
       </header>
-      <main>
-        {error ? <p className="error">{error}</p> : null}
+      <main className="flex min-h-0 flex-1 overflow-hidden">
+        {error ? (
+          <p className="m-auto max-w-md rounded-lg border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-100">{error}</p>
+        ) : null}
         {ready ? (
           <Viewport
             width={ready.parsed.canvas.width}
@@ -146,8 +208,8 @@ export function App() {
           />
         ) : null}
       </main>
-      <footer>
-        <a href="https://github.com/catdad-experiments/libheif-js">Decoder: libheif-js (LGPL-3.0)</a>
+      <footer className="shrink-0 border-t border-white/10 bg-[#14181e] px-3 py-1.5 text-xs text-zinc-500">
+        <a className="text-sky-300/80 hover:text-sky-200" href="https://github.com/catdad-experiments/libheif-js">Decoder: libheif-js (LGPL-3.0)</a>
       </footer>
     </div>
   );

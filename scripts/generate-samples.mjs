@@ -195,12 +195,41 @@ function writeClap() {
   rmSync(dir, { recursive: true, force: true });
 }
 
+const glyphs = {
+  A: ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
+  B: ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
+  C: ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
+};
+
 function writeRotation() {
   const dir = mkdtempSync(join(tmpdir(), "heicscope-"));
   const source = join(dir, "wide.png");
-  writeFileSync(source, png(128, 64, (x, y) => [(x * 2) & 255, (y * 4) & 255, 40]));
+  const letters = ["A", "B", "C"];
+  const colors = [[255, 77, 77], [255, 204, 0], [61, 255, 154]];
+  const scale = 5;
+  const glyphWidth = 5 * scale;
+  const glyphHeight = 7 * scale;
+  const gap = 6;
+  const displayWidth = 64;
+  const displayHeight = 128;
+  const originX = Math.floor((displayWidth - glyphWidth) / 2);
+  const originY = Math.floor((displayHeight - (letters.length * glyphHeight + (letters.length - 1) * gap)) / 2);
+  // irot 1 turns this 128×64 bitmap 90° CCW into a 64×128 display. Draw the glyphs
+  // in that display space so it reads A, B, C from top to bottom.
+  writeFileSync(source, png(128, 64, (x, y) => {
+    const displayX = y;
+    const displayY = displayHeight - 1 - x;
+    for (let index = 0; index < letters.length; index += 1) {
+      const top = originY + index * (glyphHeight + gap);
+      const column = Math.floor((displayX - originX) / scale);
+      const row = Math.floor((displayY - top) / scale);
+      const bits = glyphs[letters[index]];
+      if (column >= 0 && row >= 0 && row < bits.length && column < bits[row].length && bits[row][column] === "1") return colors[index];
+    }
+    return [32, 36, 42];
+  }));
   const encoded = join(dir, "rot.heic");
-  run(["-q", "40", "-o", encoded, source]);
+  run(["-L", "-o", encoded, source]);
   const buf = Buffer.from(readFileSync(encoded));
   const located = metaOf(buf);
   const props = boxes(buf, located.ipco.ps, located.ipco.pe);
@@ -252,6 +281,8 @@ function writeGrid() {
   rmSync(dir, { recursive: true, force: true });
 }
 
-writeClap();
-writeRotation();
-writeGrid();
+const wanted = new Set(process.argv.slice(2));
+const selected = (name) => wanted.size === 0 || wanted.has(name);
+if (selected("clap")) writeClap();
+if (selected("rotation")) writeRotation();
+if (selected("grid")) writeGrid();
